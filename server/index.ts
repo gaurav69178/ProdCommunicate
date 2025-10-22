@@ -1,81 +1,65 @@
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import dotenv from 'dotenv';
+dotenv.config();
 
-const app = express();
+import type { Express } from 'express';
+import express from 'express';
+import { createServer, type Server as HttpServer } from 'http';
+import session from 'express-session';
+import MemoryStore from 'memorystore';
+import {Liquid} from 'liquidjs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
-declare module 'http' {
-  interface IncomingMessage {
-    rawBody: unknown
-  }
-}
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
-app.use(express.urlencoded({ extended: false }));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+import { registerRoutes } from './routes';
+import { setupVite } from './vite';
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+const port = process.env.PORT || 5000;
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
+async function main() {
+  const app = express();
 
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+  // Session middleware
+  const sessionMiddleware = session({
+    store: new (MemoryStore(session))({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    }),
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24 * 7 // 1 week
     }
   });
+  app.use(sessionMiddleware);
 
-  next();
-});
+  // Body parsing middleware
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-(async () => {
-  const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
+  // Templating engine
+  const engine = new Liquid({
+    root: path.resolve(__dirname, '..', 'client', 'views'),
+    extname: '.liquid'
   });
+  app.engine('liquid', engine.express());
+  app.set('view engine', 'liquid');
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
+  // Register API routes and get the httpServer
+  const httpServer = await registerRoutes(app);
+
+  if (process.env.NODE_ENV === 'production') {
+    app.use(express.static('dist/client'));
   } else {
-    serveStatic(app);
+    await setupVite(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  httpServer.listen(port, () => {
+    console.log(`Server listening on port http://localhost:${port}`);
   });
-})();
+}
+
+main().catch(console.error);

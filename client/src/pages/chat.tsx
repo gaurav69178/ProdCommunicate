@@ -6,9 +6,12 @@ import { MessageList } from "@/components/message-list";
 import { ChatInput } from "@/components/chat-input";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorMessage } from "@/components/error-message";
+import { Sidebar } from "@/components/ui/sidebar";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Textarea } from "@/components/ui/textarea";
 
 const defaultPrompt = "A friendly AI chatbot";
 
@@ -18,6 +21,9 @@ type ChatMutationVariables = { chatRequest: ChatRequest; userMessage: Message };
 export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [systemPrompt, setSystemPrompt] = useState(defaultPrompt);
+  const [name, setName] = useState("Eon");
+  const [age, setAge] = useState("27");
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedMessage, setFailedMessage] = useState<Message | null>(null);
   const { toast } = useToast();
@@ -64,12 +70,20 @@ export default function Chat() {
     setMessages(currentMessages => {
       const chatRequest: ChatRequest = {
         message: content,
-        history: currentMessages, // Use state from updater to guarantee it's current
+        history: currentMessages,
         systemPrompt: systemPrompt,
+        name: name,
+        age: age,
       };
       chatMutation.mutate({ chatRequest, userMessage });
-      return [...currentMessages, userMessage]; // Return new state with optimistic message
+      return [...currentMessages, userMessage];
     });
+  };
+
+  const handleSystemPromptClick = (prompt: string, name: string, age: string) => {
+    setSystemPrompt(prompt);
+    setName(name);
+    setAge(age);
   };
 
   const handleRetry = () => {
@@ -82,36 +96,74 @@ export default function Chat() {
     setMessages(currentMessages => {
       const chatRequest: ChatRequest = {
         message: messageToRetry.content,
-        history: currentMessages, // currentMessages is the correct history (without the failed message)
+        history: currentMessages,
         systemPrompt: systemPrompt,
+        name: name,
+        age: age,
       };
       chatMutation.mutate({ chatRequest, userMessage: messageToRetry });
-      return [...currentMessages, messageToRetry]; // Optimistically add the retried message back
+      return [...currentMessages, messageToRetry];
     });
   };
 
   return (
-    <div className="flex h-[100dvh] flex-col">
-      <ChatHeader />
-      <div className="flex-shrink-0 p-4 border-b">
-        <Textarea
-          placeholder={defaultPrompt}
-          value={systemPrompt}
-          onChange={(e) => setSystemPrompt(e.target.value)}
-          className="resize-none"
-        />
+    <div className="flex h-screen">
+      <div className="hidden md:flex md:flex-col md:w-1/3 border-r">
+        <div className="p-4 border-b">
+          <h2 className="text-lg font-semibold">System Prompt</h2>
+        </div>
+        <div className="p-4 flex-grow space-y-4">
+          <Textarea
+            placeholder={defaultPrompt}
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            className="h-1/2 resize-none"
+          />
+          <div className="space-y-2">
+            <Label>Bot's Name (Optional)</Label>
+            <Input 
+              placeholder="e.g. Alex" 
+              value={name} 
+              onChange={(e) => setName(e.target.value)} 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Bot's Age (Optional)</Label>
+            <Input 
+              placeholder="e.g. 25" 
+              value={age} 
+              onChange={(e) => setAge(e.target.value)} 
+            />
+          </div>
+        </div>
       </div>
-      <div className="flex-grow overflow-y-auto p-4">
-        {messages.length === 0 && !chatMutation.isPending && !error ? (
-          <EmptyState onPromptClick={handleSendMessage} />
-        ) : (
-          <MessageList messages={messages} isLoading={chatMutation.isPending} />
-        )}
-        {error && <ErrorMessage message={error} onRetry={failedMessage ? handleRetry : undefined} />}
+
+      <div className="flex flex-col flex-1">
+        <ChatHeader toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
+        <div className="flex-grow overflow-y-auto p-4">
+          {messages.length === 0 && !chatMutation.isPending && !error ? (
+            <EmptyState onSystemPromptClick={handleSystemPromptClick} />
+          ) : (
+            <MessageList messages={messages} isLoading={chatMutation.isPending} />
+          )}
+          {error && <ErrorMessage message={error} onRetry={failedMessage ? handleRetry : undefined} />}
+        </div>
+        <div className="flex-shrink-0 p-4 border-t">
+          <ChatInput onSend={handleSendMessage} disabled={chatMutation.isPending} />
+        </div>
       </div>
-      <div className="flex-shrink-0 p-4 border-t">
-        <ChatInput onSend={handleSendMessage} disabled={chatMutation.isPending} />
-      </div>
+
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        systemPrompt={systemPrompt}
+        setSystemPrompt={setSystemPrompt}
+        defaultPrompt={defaultPrompt}
+        name={name}
+        setName={setName}
+        age={age}
+        setAge={setAge}
+      />
     </div>
   );
 }

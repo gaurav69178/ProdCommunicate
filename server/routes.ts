@@ -28,10 +28,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/chat", async (req, res) => {
     try {
       const validatedData = chatRequestSchema.parse(req.body);
-      const { message, history, systemPrompt } = validatedData;
+      const { message, history, systemPrompt, name, age } = validatedData;
+
+      let finalSystemPrompt = systemPrompt || "A friendly AI chatbot";
+      if (name && age) {
+        finalSystemPrompt += `\n\nYou are a chatbot named ${name} and you are ${age} years old.`;
+      } else if (name) {
+        finalSystemPrompt += `\n\nYou are a chatbot named ${name}.`;
+      } else if (age) {
+        finalSystemPrompt += `\n\nYou are a chatbot who is ${age} years old.`;
+      }
 
       const messages = [
-        { role: "system" as const, content: systemPrompt },
+        { role: "system" as const, content: finalSystemPrompt },
         ...history,
         { role: "user" as const, content: message },
       ];
@@ -57,15 +66,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Chat API error:", error);
 
-      // For any error (including rate limits), send a 200 OK response
-      // with a user-friendly error message and the isError flag.
       const errorResponse: ApiResponse = {
         message: "I apologize, but I'm currently unable to respond. This might be due to a high volume of requests. Please try again in a moment.",
         timestamp: Date.now(),
         isError: true,
       };
       
-      // We still send a 200 OK status so the client can handle the error gracefully.
       res.status(200).json(errorResponse);
     }
   });
