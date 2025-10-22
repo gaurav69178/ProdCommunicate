@@ -81,6 +81,11 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        // Chat-specific colors
+        "message-user": "hsl(var(--message-user) / <alpha-value>)",
+        "message-user-foreground": "hsl(var(--message-user-foreground) / <alpha-value>)",
+        "message-assistant": "hsl(var(--message-assistant) / <alpha-value>)",
+        "message-assistant-foreground": "hsl(var(--message-assistant-foreground) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
@@ -96,10 +101,20 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "fade-in": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "pulse-subtle": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.5" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-in": "fade-in 0.2s ease-out",
+        "pulse-subtle": "pulse-subtle 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
       },
     },
   },

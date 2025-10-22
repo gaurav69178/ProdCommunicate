@@ -26,6 +26,12 @@
 
   --card-border: 220 10% 92%;
 
+  --message-user: 215 85% 50%;
+  --message-user-foreground: 0 0% 100%;
+
+  --message-assistant: 220 10% 94%;
+  --message-assistant-foreground: 220 15% 15%;
+
   --sidebar: 220 8% 96%;
 
   --sidebar-foreground: 220 15% 15%;
@@ -143,6 +149,12 @@
   --card-foreground: 0 0% 95%;
 
   --card-border: 220 12% 18%;
+
+  --message-user: 215 85% 55%;
+  --message-user-foreground: 0 0% 100%;
+
+  --message-assistant: 220 12% 16%;
+  --message-assistant-foreground: 0 0% 95%;
 
   --sidebar: 220 14% 10%;
 
