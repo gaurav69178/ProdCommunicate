@@ -13,6 +13,7 @@ export type Message = z.infer<typeof messageSchema>;
 export const chatRequestSchema = z.object({
   message: z.string().min(1, "Message cannot be empty"),
   history: z.array(messageSchema),
+  systemPrompt: z.string().optional(),
 });
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;

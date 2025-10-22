@@ -8,86 +8,110 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorMessage } from "@/components/error-message";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
+
+const defaultPrompt = "A friendly AI chatbot";
+
+type ApiResponse = ChatResponse & { isError?: boolean };
+type ChatMutationVariables = { chatRequest: ChatRequest; userMessage: Message };
 
 export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [systemPrompt, setSystemPrompt] = useState(defaultPrompt);
   const [error, setError] = useState<string | null>(null);
+  const [failedMessage, setFailedMessage] = useState<Message | null>(null);
   const { toast } = useToast();
 
   const chatMutation = useMutation({
-    mutationFn: async (data: ChatRequest) => {
-      const response = await apiRequest<ChatResponse>("POST", "/api/chat", data);
-      return response;
+    mutationFn: async (variables: ChatMutationVariables) => {
+      const response = await apiRequest("POST", "/api/chat", variables.chatRequest);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "API request failed unexpectedly");
+      }
+      return response.json() as Promise<ApiResponse>;
     },
-    onSuccess: (data) => {
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: data.message,
-        timestamp: data.timestamp,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setError(null);
+    onSuccess: (data, variables) => {
+      if (data.isError) {
+        setError(data.message);
+        setFailedMessage(variables.userMessage);
+        setMessages((prev) => prev.filter(m => m.timestamp !== variables.userMessage.timestamp));
+      } else {
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: data.message,
+          timestamp: data.timestamp,
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+        setError(null);
+        setFailedMessage(null);
+      }
     },
-    onError: (err: Error) => {
-      setError(err.message || "Failed to get response. Please try again.");
-      toast({
-        title: "Error",
-        description: err.message || "Failed to get response from the AI",
-        variant: "destructive",
-      });
+    onError: (err: Error, variables) => {
+      setError(err.message);
+      setFailedMessage(variables.userMessage);
+      setMessages((prev) => prev.filter(m => m.timestamp !== variables.userMessage.timestamp));
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
-  const handleSendMessage = async (content: string) => {
-    const userMessage: Message = {
-      role: "user",
-      content,
-      timestamp: Date.now(),
-    };
+  const handleSendMessage = (content: string) => {
+    const userMessage: Message = { role: "user", content, timestamp: Date.now() };
 
-    // Update messages with the new user message and capture the updated state
-    setMessages((prevMessages) => {
-      const updatedMessages = [...prevMessages, userMessage];
-      
-      // Send the chat request with the complete history (excluding the current user message)
+    setError(null);
+    setFailedMessage(null);
+
+    setMessages(currentMessages => {
       const chatRequest: ChatRequest = {
         message: content,
-        history: prevMessages, // This now correctly includes all previous messages including assistant responses
+        history: currentMessages, // Use state from updater to guarantee it's current
+        systemPrompt: systemPrompt,
       };
-
-      setError(null);
-      chatMutation.mutate(chatRequest);
-      
-      return updatedMessages;
+      chatMutation.mutate({ chatRequest, userMessage });
+      return [...currentMessages, userMessage]; // Return new state with optimistic message
     });
   };
 
   const handleRetry = () => {
-    if (messages.length > 0) {
-      const lastUserMessage = [...messages].reverse().find(m => m.role === "user");
-      if (lastUserMessage) {
-        const chatRequest: ChatRequest = {
-          message: lastUserMessage.content,
-          history: messages.filter(m => m !== lastUserMessage),
-        };
-        setError(null);
-        chatMutation.mutate(chatRequest);
-      }
-    }
+    if (!failedMessage) return;
+
+    const messageToRetry = failedMessage;
+    setError(null);
+    setFailedMessage(null);
+
+    setMessages(currentMessages => {
+      const chatRequest: ChatRequest = {
+        message: messageToRetry.content,
+        history: currentMessages, // currentMessages is the correct history (without the failed message)
+        systemPrompt: systemPrompt,
+      };
+      chatMutation.mutate({ chatRequest, userMessage: messageToRetry });
+      return [...currentMessages, messageToRetry]; // Optimistically add the retried message back
+    });
   };
 
   return (
     <div className="flex h-[100dvh] flex-col">
       <ChatHeader />
-      {messages.length === 0 && !chatMutation.isPending ? (
-        <EmptyState onPromptClick={handleSendMessage} />
-      ) : (
-        <>
+      <div className="flex-shrink-0 p-4 border-b">
+        <Textarea
+          placeholder={defaultPrompt}
+          value={systemPrompt}
+          onChange={(e) => setSystemPrompt(e.target.value)}
+          className="resize-none"
+        />
+      </div>
+      <div className="flex-grow overflow-y-auto p-4">
+        {messages.length === 0 && !chatMutation.isPending && !error ? (
+          <EmptyState onPromptClick={handleSendMessage} />
+        ) : (
           <MessageList messages={messages} isLoading={chatMutation.isPending} />
-          {error && <ErrorMessage message={error} onRetry={handleRetry} />}
-        </>
-      )}
-      <ChatInput onSend={handleSendMessage} disabled={chatMutation.isPending} />
+        )}
+        {error && <ErrorMessage message={error} onRetry={failedMessage ? handleRetry : undefined} />}
+      </div>
+      <div className="flex-shrink-0 p-4 border-t">
+        <ChatInput onSend={handleSendMessage} disabled={chatMutation.isPending} />
+      </div>
     </div>
   );
 }
