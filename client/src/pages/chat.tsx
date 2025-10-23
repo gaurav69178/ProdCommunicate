@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { type Message, type ChatRequest, type ChatResponse } from "@shared/schema";
 import { ChatHeader } from "@/components/chat-header";
@@ -27,6 +27,16 @@ export default function Chat() {
   const [error, setError] = useState<string | null>(null);
   const [failedMessage, setFailedMessage] = useState<Message | null>(null);
   const { toast } = useToast();
+  const [viewHeight, setViewHeight] = useState('100vh');
+
+  useEffect(() => {
+    const setHeight = () => {
+      setViewHeight(`${window.innerHeight}px`);
+    };
+    window.addEventListener("resize", setHeight);
+    setHeight();
+    return () => window.removeEventListener("resize", setHeight);
+  }, []);
 
   const chatMutation = useMutation({
     mutationFn: async (variables: ChatMutationVariables) => {
@@ -107,7 +117,7 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex h-screen">
+    <div className="flex flex-col md:flex-row" style={{ height: viewHeight }}>
       <div className="hidden md:flex md:flex-col md:w-1/3 border-r">
         <div className="p-4 border-b">
           <h2 className="text-lg font-semibold">System Prompt</h2>
@@ -138,9 +148,9 @@ export default function Chat() {
         </div>
       </div>
 
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-1 flex-col h-full relative">
         <ChatHeader toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
-        <div className="flex-grow overflow-y-auto p-4">
+        <div className="flex-grow overflow-y-auto p-4 pb-24">
           {messages.length === 0 && !chatMutation.isPending && !error ? (
             <EmptyState onSystemPromptClick={handleSystemPromptClick} />
           ) : (
@@ -148,7 +158,7 @@ export default function Chat() {
           )}
           {error && <ErrorMessage message={error} onRetry={failedMessage ? handleRetry : undefined} />}
         </div>
-        <div className="flex-shrink-0 p-4 border-t">
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-background border-t">
           <ChatInput onSend={handleSendMessage} disabled={chatMutation.isPending} />
         </div>
       </div>

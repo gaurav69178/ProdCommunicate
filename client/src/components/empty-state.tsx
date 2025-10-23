@@ -73,7 +73,7 @@ export function EmptyState({ onSystemPromptClick }: EmptyStateProps) {
 
         <div className="mt-8 w-full space-y-3">
           <p className="text-sm font-medium text-muted-foreground">Suggested system prompts:</p>
-          <div className="grid gap-2 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
             {suggestedSystemPrompts.map((prompt, index) => {
               const Icon = prompt.icon;
               return (

@@ -66,13 +66,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Chat API error:", error);
 
-      const errorResponse: ApiResponse = {
-        message: "I apologize, but I'm currently unable to respond. This might be due to a high volume of requests. Please try again in a moment.",
-        timestamp: Date.now(),
-        isError: true,
-      };
-      
-      res.status(200).json(errorResponse);
+      res.status(500).json({
+        error: error.message || "An unexpected error occurred."
+      });
     }
   });
 
